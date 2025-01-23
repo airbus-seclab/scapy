@@ -1025,6 +1025,7 @@ class Conf(ConfClass):
     geoip_city = None
     # can, tls, http and a few others are not loaded by default
     load_layers: List[str] = [
+        'a429',
         'bluetooth',
         'bluetooth4LE',
         'dcerpc',

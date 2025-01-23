@@ -1,0 +1,79 @@
+% A429 regression tests for Scapy
+
+# More information at http://www.secdev.org/projects/UTscapy/
+
+############
+# ARINC 429
+############
+
++ A429 tests
+
+= test a429 packet creation and dissecting
+~ a429
+
+pkt = ARINC429(label=0o005, data=A429Payload(load=0x0f0f0f))
+data = pkt.to_int(reverse_label=False)
+assert data == 0x8f0f0fa0, f"actual value: 0x{data:x}"
+parsed = ARINC429.from_int(data, reverse_label=False)
+assert parsed.label == 0o005, f"actual value: 0o{parsed.label:03o}"
+assert parsed.data.load == 0x0f0f0f, f"actual value: 0x{parsed.data.load:x}"
+
+data = pkt.to_int(reverse_label=True)
+assert data == 0x8f0f0f05, f"actual value: 0x{data:x}"
+parsed = ARINC429.from_int(data, reverse_label=True)
+assert parsed.label == 0o005, f"actual value: 0o{parsed.label:03o}"
+assert parsed.data.load == 0x0f0f0f, f"actual value: 0x{parsed.data.load:x}"
+
+b1 = bytes(pkt)
+assert b1 == b'\x8f\x0f\x0f\xa0'
+
+
+= test a429 GenericPayload
+
+pkt = ARINC429(data=A429GenericPayload(ssm=0x1, load=0x70f0f, sdi=0x3))
+data = pkt.to_int(reverse_label=False)
+assert data == 0xbc3c3f00, f"actual value: 0x{data:x}"
+parsed = ARINC429.from_int(data, reverse_label=False)
+assert parsed.data.ssm == 0x1, f"actual value: 0x{parsed.data.ssm:x}"
+assert parsed.data.load == 0x70f0f, f"actual value: 0x{parsed.data.load:x}"
+assert parsed.data.sdi == 0x3, f"actual value: 0x{parsed.data.sdi:x}"
+
+b2 = bytes(pkt)
+assert b2 == b'\xbc\x3c\x3f\x00'
+
+= test a429 multiple
+
+pkts = ARINC429Multiple(b1 + b2)
+assert len(pkts.a429) == 2, f"actual value: {len(pkts.a429)}"
+assert pkts.a429[0].label == 0o005, f"actual value: 0o{parsed.label:03o}"
+assert pkts.a429[1].label == A429GenericPayload.label, f"actual value: 0o{parsed.label:03o}"
+
+
+= test a429 custom payload
+
+# define a429 custom payload format
+
+class A429CustomPayload(A429Payload):
+    name: str = "ARINC 429 (Custom)"
+    label: int = 0o270
+    _sdi: int = 0x2
+    mask: int = 0x000003FF
+    match: int = A429Label.reverse(label) | _sdi << 8
+    fields_desc: typing.List[Field] = [
+        BitField("ssm", 0, 2),
+        XBitField("value_1", 0, 8),
+        BitField("res", 0, 3),
+        BitField("value_2", 0, 8),
+        BitField("sdi", _sdi, 2),
+    ]
+
+pkt = ARINC429(data=A429CustomPayload(value_1=42, value_2=0x42))
+data = pkt.to_int(reverse_label=False)
+assert data == 0x85410a1d, f"actual value: 0x{data:x}"
+parsed = ARINC429.from_int(data, reverse_label=False)
+assert parsed.label == A429CustomPayload.label, f"actual value: 0o{parsed.label:03o}"
+assert parsed.data.ssm == 0, f"actual value: 0x{parsed.data.ssm:x}"
+assert parsed.data.value_1 == 42, f"actual value: 0x{parsed.data.value_1:x}"
+assert parsed.data.value_2 == 0x42, f"actual value: 0x{parsed.data.value_2:x}"
+assert parsed.data.sdi == A429CustomPayload._sdi, f"actual value: 0x{parsed.data.sdi:x}"
+

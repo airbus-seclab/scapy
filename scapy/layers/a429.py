@@ -147,13 +147,13 @@ class ARINC429(Packet):
     def to_int(self, reverse_label: bool = False) -> int:
         frame = int.from_bytes(bytes(self), "big")
         if reverse_label:
-            frame = reverse_a429_label(frame)
+            frame = self.__class__.label_reverse(frame)
         return frame
 
     @classmethod
     def from_int(cls, frame: int, reverse_label: bool = False):
         if reverse_label:
-            frame = reverse_a429_label(frame)
+            frame = cls.label_reverse(frame)
         frame_bytes = frame.to_bytes(4, "big")
         return cls(frame_bytes)
 
@@ -166,6 +166,14 @@ class ARINC429(Packet):
         word = (word >> 16) | (word << 16)
         word &= 0xFFFFFFFF
         return word
+
+    @staticmethod
+    def label_reverse(frame: int) -> int:
+        label = frame & 0x000000FF
+        label = (label & 0xF0) >> 4 | (label & 0x0F) << 4
+        label = (label & 0xCC) >> 2 | (label & 0x33) << 2
+        label = (label & 0xAA) >> 1 | (label & 0x55) << 1
+        return (frame & 0xFFFFFF00) | label
 
 
 class ARINC429Multiple(Packet):
@@ -186,11 +194,3 @@ class A429GenericPayload(A429Payload):
         XBitField("load", 0, 19),
         BitField("sdi", 0, 2),
     ]
-
-
-def reverse_a429_label(frame: int) -> int:
-    label = frame & 0x000000FF
-    label = (label & 0xF0) >> 4 | (label & 0x0F) << 4
-    label = (label & 0xCC) >> 2 | (label & 0x33) << 2
-    label = (label & 0xAA) >> 1 | (label & 0x55) << 1
-    return (frame & 0xFFFFFF00) | label

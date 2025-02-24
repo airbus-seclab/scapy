@@ -1,0 +1,322 @@
+% Regression tests for A429 contrib layer
+
+# More information at http://www.secdev.org/projects/UTscapy/
+
++ Basic functionality
+
+= Trivial serialization
+
+from scapy.contrib.aero.a429 import A429
+assert bytes(A429(label=0x42)) == b"\x80\x00\x00\x42"
+
+
+= Define new A429 subclass
+
+from scapy.contrib.aero.a429 import (
+    A429,
+    ParityField,
+    SSMField,
+    SSMSignField,
+    LabelField,
+    BNRAngleField,
+)
+
+
+class GAMAWPTLat(A429):
+    label = 0o306
+    fields_desc = [
+        ParityField(),
+        SSMField(),
+        SSMSignField(value_from=lambda p: p.angle),
+        BNRAngleField(
+            "angle",
+            0,
+            range=180,
+            size=20,
+        ),
+        LabelField(),
+    ]
+
+* Lookup a class based on a label
+assert A429.packet_class_for_label(0o306) is GAMAWPTLat
+
+* Basic encoding
+assert bytes(GAMAWPTLat(ssm=0)) == b"\x80\x00\x00\x63"
+
+* Class assignement based on value of the label
+assert type(A429(label=198)) is GAMAWPTLat
+
+* Class assignment at dissection
+pkt = bytes(A429(label=198))
+assert type(A429(pkt)) is GAMAWPTLat
+
+* Serialization and deserialization of negative BNR values
+assert int(A429(bytes(GAMAWPTLat(angle=-20))).angle) == -20
+
+
+= Sample Generic A429 word
+from scapy.fields import BitField,XBitField
+from scapy.contrib.aero.a429 import (
+    A429,
+    ParityField,
+    SSMField,
+    SSMSignField,
+    SDIField,
+    LabelField,
+    BNRAngleField,
+)
+
+class A429Custom(A429):
+    name = "ARINC 429 (Custom)"
+    label = 0o270
+    sdi = 0x2
+    fields_desc = [
+        ParityField(),
+        SSMField(),
+        XBitField("value_1", 0, 8),
+        BitField("res", 0, 3),
+        BitField("value_2", 0, 8),
+        SDIField(),
+        LabelField(),
+    ]
+
+pkt = A429Custom(ssm=0, value_1=42, value_2=0x42)
+data = pkt.as_int()
+assert data == 0x85410a1d, f"actual value: 0x{data:x}"
+parsed = A429.from_int(data)
+assert parsed.label == A429Custom.label.default, f"actual value: 0o{parsed.label:03o}"
+assert parsed.ssm == 0, f"actual value: 0x{parsed.ssm:x}"
+assert parsed.value_1 == 42, f"actual value: 0x{parsed.value_1:x}"
+assert parsed.value_2 == 0x42, f"actual value: 0x{parsed.value_2:x}"
+assert parsed.sdi == A429Custom.sdi.default, f"actual value: 0x{parsed.sdi:x}"
+
+
+= Equipment specific configuration 
+
+class SomePacket(A429):
+    label = 0o306
+
+EqptSpecificA429 = A429.with_config({3: SomePacket})
+
+# # Class is looked up according to the label-map used in with_config
+assert type(EqptSpecificA429(label=3) is EqptSpecificA429.packet_class_for_label(3))
+
+# consistent default value for label
+assert EqptSpecificA429.packet_class_for_label(3).label.default == 3
+
+# basic encoding
+assert bytes(EqptSpecificA429(label=3)) == b"\x80\x00\x00\xc0"
+
+# Confirm isolation between the base configuration and the one generated
+# by with_config
+assert type(A429(label=198)) is SomePacket
+
+
+= Reversed Labels
+# By default labels have their bits in reversed order
+pkt = A429(label=0o005, data=0x0F0F0F)
+assert bytes(pkt) == b"\x8f\x0f\x0f\xa0"
+
+# But a configuration with bits in MSB order can also be generated
+A429Reversed = A429.with_config(reverse_label=False)
+pkt = A429Reversed(label=0o005, data=0x0F0F0F)
+assert bytes(pkt) == b"\x8f\x0f\x0f\x05"
+
+
+
++ Sampling of test vectors from ARINC429 Part 1, Attachment 6
+
+= SelectedHeading (manual redefinition)
+from scapy.fields import BitField
+from scapy.contrib.aero.a429 import (
+    A429,
+    ParityField,
+    SSMField,
+    SSMSignField,
+    BNRAngleField,
+    SDIField,
+    LabelField
+)
+
+class SelectedHeading(A429):
+    label = 0o101
+    fields_desc = [
+        ParityField(),
+        SSMField(),
+        SSMSignField(value_from=lambda p: p.hdg),
+        BNRAngleField("hdg", 0, range=180, size=12),
+        BitField("pad", 0, size=6),
+        SDIField(),
+        LabelField(),
+    ]
+
+assert bytes(SelectedHeading(ssm=0b11, hdg=150)) == b"\x6d\x55\x00\x82"
+
+= SelectedHeading (default implementation)
+from scapy.contrib.aero.a429 import SelectedHeading
+assert bytes(SelectedHeading(label= 0o101, ssm=0b11, val=150)) == b"\x6d\x55\x00\x82"
+
+
+= SelectedAltitude (manual redefinition)
+from scapy.fields import BitField
+from scapy.contrib.aero.a429 import (
+    A429,
+    ParityField,
+    SSMField,
+    SSMSignField,
+    BNRField,
+    SDIField,
+    LabelField
+)
+
+class SelectedAltitude(A429):
+    label = 0o102
+    fields_desc = [
+        ParityField(),
+        SSMField(),
+        SSMSignField(value_from=None),
+        BNRField("alt", 0, range=65536, size=16, unit="Ft"),
+        BitField("pad", 0, size=2),
+        SDIField(),
+        LabelField(),
+    ]
+
+
+assert bytes(SelectedAltitude(ssm=0b11, alt=41000)) == b"\xea\x02\x80\x42"
+
+
+= SelectedAltitude (default implementation)
+from scapy.contrib.aero.a429 import SelectedAltitude
+assert bytes(SelectedAltitude(label= 0o102, ssm=0b11, val=41000)) ==  b"\xea\x02\x80\x42"
+
+
+= FlightDirectorPitch (manual redefinition)
+from scapy.fields import BitField
+from scapy.contrib.aero.a429 import (
+    A429,
+    ParityField,
+    SSMField,
+    SSMSignField,
+    BNRAngleField,
+    SDIField,
+    LabelField
+)
+
+class FlightDirectorPitch(A429):
+    label = 0o141
+    fields_desc = [
+        ParityField(),
+        SSMField(),
+        SSMSignField(value_from=lambda p: p.angle),
+        BNRAngleField("angle", 0, size=12, range=180),
+        BitField("pad", 0, size=6),
+        SDIField(),
+        LabelField(),
+    ]
+
+# Example from A429P1 p 92 appears to have incorrect parity!?
+assert bytes(FlightDirectorPitch(ssm=0b11, angle=-10)) == b"\x7f\x1c\x00\x86"
+
+
+= FlightDirectorPitch (default implementation)
+from scapy.contrib.aero.a429 import FlightDirectorPitch
+assert bytes(FlightDirectorPitch(label= 0o141, ssm=0b11, val=-10)) == b"\x7f\x1c\x00\x86"
+
+
+
++ ADIRS test vectors from A429 P1 - Attachment 6 (Table 6-25)
+
+= BCDGroundSpeed
+from scapy.contrib.aero.a429_eqpt import ADIRS
+pkt = ADIRS.A429(label=0o012, val=650)
+assert isinstance(pkt, ADIRS.BCDGroundSpeed)
+assert pkt.as_int() == 0b10000001100101000000000001010000
+
+
+= BCDTrackAngle
+from scapy.contrib.aero.a429_eqpt import ADIRS
+pkt = ADIRS.A429(label=0o013, val=165.5)
+assert isinstance(pkt, ADIRS.BCDTrackAngle)
+assert pkt.as_int() == 0b10000101100101010100000011010000
+
+
+= BCDTotalAirTemp (manual redefinition)
+from scapy.contrib.aero.a429 import (
+    A429BCDHeader,
+    BCDField,
+    A429Trailer,
+)
+
+class BCDTotalAirTemp(A429):
+    label = 0o231
+    fields_desc = [
+        A429BCDHeader,
+        BCDField("val", 0, size=15, res=0.1, unit="°C"),
+        A429Trailer,
+    ]
+
+assert bytes(BCDTotalAirTemp(val=-25)) == b"\x60\x94\x00\x99"
+
+
+= BCDTotalAirTemp (default implementation)
+from scapy.contrib.aero.a429 import BCDTotalAirTemp
+assert bytes(BCDTotalAirTemp(label= 0o231, val=-25)) == b"\x60\x94\x00\x99"
+
+
+
++ ADIRS test vectores from A429 P1 - Attachment 6 (Table 6-27)
+
+= Altitude
+# The following is marked as 4500 feet in the standard but is presumably
+# is a mistake, and should actually read 45000
+# furthermore, the example has even parity!?
+from scapy.contrib.aero.a429_eqpt import ADIRS
+pkt = ADIRS.A429(label=0o203, val=45000)
+assert isinstance(pkt, ADIRS.Altitude)
+assert pkt.as_int() == 0b11100101011111100100000011000001
+
+
+= Mach
+from scapy.contrib.aero.a429_eqpt import ADIRS
+pkt = ADIRS.A429(label=0o205, val=0.8325)
+assert isinstance(pkt, ADIRS.Mach)
+assert pkt.as_int() == 0b01100011010000001000000010100001
+
+
+= ComputedAirspeed
+from scapy.contrib.aero.a429_eqpt import ADIRS
+pkt = ADIRS.A429(label=0o206, val=425)
+assert isinstance(pkt, ADIRS.ComputedAirspeed)
+assert pkt.as_int() == 0b11100110101001000000000001100001
+
+
+= BNRGroundSpeed
+from scapy.contrib.aero.a429_eqpt import ADIRS
+pkt = ADIRS.A429(label=0o312, val=650)
+assert isinstance(pkt, ADIRS.BNRGroundSpeed)
+assert pkt.as_int() == 0b11100010100010100000000001010011
+
+
+= FlightPathAcceleration
+# Example in standard appears incorrect: it has 13 bits as opposed to 12
+# bits specified in Table2
+from scapy.contrib.aero.a429_eqpt import ADIRS
+pkt = ADIRS.A429(label=0o323, val=2.5)
+assert isinstance(pkt, ADIRS.FlightPathAcceleration)
+assert pkt.as_int() == 0b01101010000000000000000011001011
+
+
+
+# + Reparenting of A429 subclasses for each A429Equipment
+
+= All equipment A429 subclasses are subclasses of that equipment's A429
+from scapy.contrib.aero.a429_eqpt import ADIRS
+for c in ADIRS.A429._lbl2cls.values():
+    assert issubclass(c, ADIRS.A429)
+
+= Automatic mapping of a label to it's equipment specific subclass
+from scapy.contrib.aero.a429_eqpt import ADIRS
+assert (
+    ADIRS.A429.packet_class_for_label(0o252)
+    is ADIRS.BaroCorrectedAltitude4
+)

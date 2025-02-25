@@ -263,11 +263,6 @@ class BNRAngleField(BNRField):
 class BCDField(BitField):
     """
     ARINC 429 BCD encoded field.
-
-    A BCD field **includes** the SSM bits.
-
-    TODO: As of this impl, there is no simple way to set the SSM to "No Computed
-          Data" or "Functional Test".
     """
 
     __slots__ = "unit", "res"
@@ -382,9 +377,6 @@ A429_FMT = "!I"
 class A429(Packet):
     """
     A429 word represented as a Scapy Packet.
-
-    The class itself is abstract and serves as a common parent for concrete A429
-    subclasses.
 
     Subclasses should define a `label` class variable defining the value that
     will serve to match raw 429 to the subclass when dissecting.

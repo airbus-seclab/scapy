@@ -6,5 +6,5 @@
 # scapy.contrib.status = skip
 
 """
-Package of contrib aeronautic modules that require explcicit loading.
+Package of contrib aeronautic modules that require explicit loading.
 """

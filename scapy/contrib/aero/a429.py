@@ -9,7 +9,7 @@
 """
 Provides an implementation for ARINC 429 words.
 
-Implemented following specification as per ARINC 429 Part 1
+Implemented following specification as per ARINC 429 Part 1.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ if sys.version_info >= (3, 10):
 
     def parity(v: int) -> int:
         """
-        Calculate parity of a raw A429 word
+        Calculate parity of a raw A429 word.
         """
         return v.bit_count() % 2
 
@@ -47,14 +47,14 @@ else:
 
     def parity(v: int) -> int:
         """
-        Calculate parity of a raw A429 word
+        Calculate parity of a raw A429 word.
         """
         return (bin(v).count("1") + 1) % 2
 
 
 def parity_fix(w: int) -> int:
     """
-    fix the parity of an raw A429 word
+    Fix parity of a raw A429 word.
     """
     w = w & 0x7FFF_FFFF
     p = parity(w)
@@ -195,7 +195,7 @@ class BNRField(BitField):
     """
     BNR A429 number field.
 
-    See ARINC 429 Part 1 - §2.0 Digital Information Transfer System Standards
+    See ARINC 429 Part 1 - §2.0 Digital Information Transfer System Standards.
     """
 
     __slots__ = "unit", "res", "sign_from"
@@ -243,7 +243,7 @@ class BNRField(BitField):
 
 class BNRAngleField(BNRField):
     """
-    Specific BNR encoding for angle measurement w/ sign bit included
+    Specific BNR encoding for angle measurement w/ sign bit included.
     """
 
     def __init__(
@@ -262,12 +262,12 @@ class BNRAngleField(BNRField):
 
 class BCDField(BitField):
     """
-    ARINC 429 BCD encoded field
+    ARINC 429 BCD encoded field.
 
     A BCD field **includes** the SSM bits.
 
-    TODO: as of this impl, there is no simple way to set the SSM
-          to "No Computed Data" or "Functional Test"
+    TODO: As of this impl, there is no simple way to set the SSM to "No Computed
+          Data" or "Functional Test".
     """
 
     __slots__ = "unit", "res"
@@ -320,7 +320,7 @@ class SDIField(BitEnumField):
 
 class BitPadField(BitField):
     """
-    Pad bits to a given target length
+    Pad bits to a given target length.
     """
 
     __slots__ = ("pad_to_size",)
@@ -333,8 +333,8 @@ class BitPadField(BitField):
 
     def register_owner(self, cls: Type[Packet]):
         """
-        Callback from Packet_metaclass when a Packet class that uses
-        this field is created.
+        Callback from Packet_metaclass when a Packet class that uses this field
+        is created.
         """
 
         sz: int = 0
@@ -364,9 +364,9 @@ class BitPadField(BitField):
 
         # Create a copy of the field, to assign its final size
         # `_BitField.tot_size` and `end_tot_size` aren't updated because
-        # `_BitField.rev` is left to its initial `False` value. Because `rev`
-        # is `True`, neither `tot_size` or `end_tot_size` are used, and
-        # only `BitField.size` needs to be set.
+        # `_BitField.rev` is left to its initial `False` value. Because `rev` is
+        # `True`, neither `tot_size` or `end_tot_size` are used, and only
+        # `BitField.size` needs to be set.
         f = f.copy()
         f.size = max(0, pad_size)
         cls.fields_desc[i] = f
@@ -381,19 +381,19 @@ A429_FMT = "!I"
 
 class A429(Packet):
     """
-    A429 word represented as a Scapy Packet
+    A429 word represented as a Scapy Packet.
 
-    The class itself is abstract and serves as a common parent for concrete
-    A429 subclasses.
+    The class itself is abstract and serves as a common parent for concrete A429
+    subclasses.
 
     Subclasses should define a `label` class variable defining the value that
     will serve to match raw 429 to the subclass when dissecting.
 
-    Subclasses should have `A429` as the first element in their
-    `fields_desc` followed by their own specific `BitField`s.
+    Subclasses should have `A429` as the first element in their `fields_desc`
+    followed by their own specific `BitField`s.
 
-    Subclasses can set `reverse_label` to True/False to control the bit
-    order of their label in M (Machine) format.
+    Subclasses can set `reverse_label` to True/False to control the bit order of
+    their label in M (Machine) format.
     """
 
     # Whether labels have their bits in reverse order
@@ -411,8 +411,8 @@ class A429(Packet):
     ]
 
     def post_build(self, pkt: bytes, pay: bytes) -> bytes:
-        # the label is kept in a trailer field so it will be passed in
-        # the `pay` parameter
+        # The label is kept in a trailer field so it will be passed in the `pay`
+        # parameter
         pkt = pkt + pay
         if self.parity is None:
             w = bytes_to_int(pkt)
@@ -431,9 +431,9 @@ class A429(Packet):
         cls, _pkt: bytes | None = None, *args, **kargs
     ) -> Type[Self]:
         """
-        return the A429 subclass to use to create a new Packet instance
-        based on its label (as determined from the arguments) and
-        subclasses registered with the A429 super class.
+        Return the A429 subclass to use to create a new Packet instance based on
+        its label (as determined from the arguments) and subclasses registered
+        with the A429 super class.
         """
         lbl: int | None = None
 
@@ -491,20 +491,19 @@ class A429(Packet):
             if not issubclass(sub, from_parent):
                 return sub
 
-            # if we've reached the top of the hierarchy (from_parent)
-            # just return the new parent (cls)
+            # If we've reached the top of the hierarchy (from_parent) just
+            # return the new parent (cls)
             if sub is from_parent:
                 return cls
 
-            # If we've already generated a reparented version
-            # of sub, return that
+            # If we've already generated a reparented version of sub, return
+            # that
             if nsc := cmap.get(sub):
                 return nsc
 
-            # Create a new version of sub and recursively copy
-            # its base classes.
+            # Create a new version of sub and recursively copy its base classes.
             #
-            # Bcs we're using `type` here we're not going through the full
+            # Because we're using `type` here, we're not going through the full
             # metaclass initialization (it's already been done), but we do need
             # to call `register_variant`
             nsc = type(
@@ -532,7 +531,7 @@ class A429(Packet):
 
         This will allow subsequent label-based lookups.
         """
-        # only register a variant if its label isn't None or 0
+        # Only register a variant if its label isn't None or 0
         if (label := cls.label.default) and label:
             cls._lbl2cls[label] = cls
 
@@ -554,8 +553,8 @@ class A429(Packet):
         Return a version of the A429 class configured with an alternate
         Label-to-Packet-class mapping.
 
-        The method is intended to be called on A429 (or copies of the
-        same) directly, and not on A429 subclasses.
+        The method is intended to be called on A429 (or copies of the same)
+        directly, and not on A429 subclasses.
 
         It's purpose is to support the creation of A429Equipment-specific
         label-to-A429-subclass mappings.
@@ -576,9 +575,9 @@ class A429(Packet):
         }
         ncls = type(cls.__name__, cls.__bases__, d)
 
-        # For each A429 subclass provided in the label_map, copy the class
-        # so that we can reparent it to `ncls` and modify the default value of
-        # its label field.
+        # For each A429 subclass provided in the label_map, copy the class so
+        # that we can reparent it to `ncls` and modify the default value of its
+        # label field.
 
         label_map = label_map or cls._lbl2cls
         class_map = {}
@@ -607,9 +606,9 @@ class A429BNRHeader(Packet):
 
 class A429Trailer(Packet):
     """
-    Convenience Packet that gathers a pad field and the SDI field
+    Convenience Packet that gathers a pad field and the SDI field.
 
-    Ideally this would be an actural `TrailerField` but as of writing the
+    Ideally this would be an actual `TrailerField` but, as of writing, the
     latter only supports byte-aligned fields.
     """
 
@@ -629,18 +628,17 @@ class A429Equipment:
     """
     Abstract superclass for A429 equipment.
 
-    An A429 equipment will usually have its own interpretation of each
-    label. In the present context, this amounts to a per equipment
-    mapping between labels and A429 subclasses.
+    An A429 equipment will usually have its own interpretation of each label. In
+    the present context, this amounts to a per equipment mapping between labels
+    and A429 subclasses.
 
-    When a new equipment is declared, a copy of A429 configured
-    with the equipment's `label_map` is automatically generated.
-    The copy is accessible as static member variable of the Equipment subclass.
+    When a new equipment is declared, a copy of A429 configured with the
+    equipment's `label_map` is automatically generated. The copy is accessible
+    as static member variable of the Equipment subclass.
 
-    The generated A429 classes for the equipment are available
-    as static members of the Equipment subclass.
+    The generated A429 classes for the equipment are available as static members
+    of the Equipment subclass.
     ```python
-
     class MyEquipment(A429Equipment):
         ...
 
@@ -652,18 +650,18 @@ class A429Equipment:
     # Equipment id
     eqpt_id: int | None = None
 
-    # mapping from labels to an A429 subclass
+    # Mapping from labels to an A429 subclass
     label_map: Dict[int, A429] = {}
 
-    # does the equipment use reversed labels
+    # Whether labels have their bits in reverse order
     reverse_label: bool = True
 
     _id2eqpt = {}
 
     def __init_subclass__(cls, **kwargs):
         """
-        New A429 Equipment, automatically define an A429 Packet with
-        its private mapping
+        New A429 Equipment, automatically define an A429 Packet with its private
+        mapping.
         """
         super().__init_subclass__(**kwargs)
 
@@ -851,8 +849,8 @@ class BaroCorrectedAltitude4(BaroCorrectedAltitude):
     name = "BaroCorrectedAltitude #4"
 
 
-# TODO specification states 20 bits (where 18 are used here), however
-# there are only 19 bits available!?
+# TODO specification states 20 bits (where 18 are used here), however there are
+# only 19 bits available!?
 class IntegratedVerticalAcceleration(A429):
     fields_desc = [
         A429BNRHeader,

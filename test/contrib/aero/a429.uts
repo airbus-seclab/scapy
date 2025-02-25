@@ -43,7 +43,7 @@ assert A429.packet_class_for_label(0o306) is GAMAWPTLat
 * Basic encoding
 assert bytes(GAMAWPTLat(ssm=0)) == b"\x80\x00\x00\x63"
 
-* Class assignement based on value of the label
+* Class assignment based on value of the label
 assert type(A429(label=198)) is GAMAWPTLat
 
 * Class assignment at dissection
